@@ -1,0 +1,150 @@
+groups:
+  - name: host_health_alerts
+    rules:
+      - alert: InstanceDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Instance {{ $labels.instance }} down"
+          description: "{{ $labels.instance }} of job {{ $labels.job }} has been down for more than 5 minutes."
+
+  - name: host_memory_alerts
+    rules:
+      - alert: HostOutOfMemoryLow
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 20) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host out of memory (instance {{ $labels.instance }})
+          description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostOutOfMemory
+        expr: (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes * 100 < 10) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host out of memory (instance {{ $labels.instance }})
+          description: "Node memory is filling up (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostMemoryIsUnderutilized
+        expr: (100 - (avg_over_time(node_memory_MemAvailable_bytes[30m]) / node_memory_MemTotal_bytes * 100) < 20) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 1w
+        labels:
+          severity: info
+        annotations:
+          summary: Host Memory is underutilized (instance {{ $labels.instance }})
+          description: "Node memory is < 20% for 1 week. Consider reducing memory space. (instance {{ $labels.instance }})\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+  
+  - name: host_disk_alerts
+    rules:
+      
+      - alert: HostOutOfDiskSpace
+        expr: ((node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) node_filesystem_readonly == 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host out of disk space (instance {{ $labels.instance }})
+          description: "Disk is almost full (< 10% left)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostDiskWillFillIn24Hours
+        expr: ((node_filesystem_avail_bytes * 100) / node_filesystem_size_bytes < 10 and ON (instance, device, mountpoint) predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs"}[1h], 24 * 3600) < 0 and ON (instance, device, mountpoint) node_filesystem_readonly == 0) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host disk will fill in 24 hours (instance {{ $labels.instance }})
+          description: "Filesystem is predicted to run out of space within the next 24 hours at current write rate\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: host_cpu_alerts
+    rules:
+
+      - alert: HostHighCpuLoad
+        expr: (sum by (instance) (avg by (mode, instance) (rate(node_cpu_seconds_total{mode!="idle"}[2m]))) > 0.8) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host high CPU load (instance {{ $labels.instance }})
+          description: "CPU load is > 80%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostMaxCpuLoad
+        expr: (sum by (instance) (avg by (mode, instance) (rate(node_cpu_seconds_total{mode!="idle"}[2m]))) > 0.95) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host high CPU load (instance {{ $labels.instance }})
+          description: "CPU load is > 95%\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostCpuIsUnderutilized
+        expr: (100 - (rate(node_cpu_seconds_total{mode="idle"}[30m]) * 100) < 10) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 1w
+        labels:
+          severity: info
+        annotations:
+          summary: Host CPU is underutilized (instance {{ $labels.instance }})
+          description: "CPU load is < 20% for 1 week. Consider reducing the number of CPUs.\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: host_network_alerts
+    rules:
+
+      - alert: HostUnusualNetworkThroughputIn
+        expr: (sum by (instance) (rate(node_network_receive_bytes_total[2m])) / 1024 / 1024 > 100) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual network throughput in (instance {{ $labels.instance }})
+          description: "Host network interfaces are probably receiving too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: HostUnusualNetworkThroughputOut
+        expr: (sum by (instance) (rate(node_network_transmit_bytes_total[2m])) / 1024 / 1024 > 100) * on(instance) group_left (nodename) node_uname_info{nodename=~".+"}
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host unusual network throughput out (instance {{ $labels.instance }})
+          description: "Host network interfaces are probably sending too much data (> 100 MB/s)\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+  - name: app_web_alerts
+    rules:
+      - alert: BlackboxProbeFailed
+        expr: probe_success == 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe failed (instance {{ $labels.instance }})
+          description: "Probe failed\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxProbeHttpFailure
+        expr: probe_http_status_code <= 199 OR probe_http_status_code >= 400
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox probe HTTP failure (instance {{ $labels.instance }})
+          description: "HTTP status code is not 200-399\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxSslCertificateWillExpireSoon
+        expr: 3 <= round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 20
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: Blackbox SSL certificate will expire soon (instance {{ $labels.instance }})
+          description: "SSL certificate expires in less than 20 days\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"
+
+      - alert: BlackboxSslCertificateWillExpireSoon
+        expr: 0 <= round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 5
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: Blackbox SSL certificate will expire soon (instance {{ $labels.instance }})
+          description: "SSL certificate expires in less than 3 days\n  VALUE = {{ $value }}\n  LABELS = {{ $labels }}"

@@ -1,0 +1,87 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - 'rules.yml'
+
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+       - 192.168.1.24:9093
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+  - job_name: 'node'
+    static_configs:
+      - targets: ['192.168.1.24:9100']
+
+  - job_name: "webserver-ui"
+    static_configs:
+      - targets: ["192.168.1.8:9200"]
+  
+  - job_name: "app-php"
+    static_configs:
+      - targets: ["192.168.1.3:9200"]
+
+  - job_name: "app-python"
+    static_configs:
+      - targets: ["192.168.1.5:9200"]
+      
+  - job_name: "app-java"
+    static_configs:
+      - targets: ["192.168.1.7:9200"]
+      
+  - job_name: "mysql-vm"
+    static_configs:
+      - targets: ["192.168.1.6:9200"]
+
+  - job_name: "cozentus-main"
+    static_configs:
+      - targets: ['192.168.1.13:9200']
+  
+  - job_name: "MySql-NEW-VM"
+    static_configs:
+      - targets: ["192.168.1.25:9200"]
+
+  # Jenkins Jobs
+
+  - job_name: "jenkins"
+    metrics_path: /prometheus/
+    static_configs:
+      - targets: ["cozbuild.cozentus.com"]
+
+  # BlackBox Configuration
+  - job_name: 'blackbox'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]  
+    static_configs:
+      - targets:
+        - https://www.cozentus.com
+        - https://cozbuild.cozentus.com/login?from=%2F
+        - https://governance.cozentus.com
+        - https://governanceapi.cozentus.com/swagger/index.html
+        - https://visibility.cozentus.com
+        - https://visibilityapi.cozentus.com
+        - https://support.cozentus.com
+        - https://supportapi.cozentus.com
+        - https://pms.cozentus.com
+        - https://dms.cozentus.com
+        - https://eaudit.cozentus.com
+        - https://eauditapi.cozentus.com
+        - https://da.cozentus.com
+        - http://192.168.1.8:88
+        - http://192.168.1.8:86
+        - http://192.168.1.5:5000
+        - http://192.168.1.7:9999/smartAnalytics-common/api/v1/getQlikToken
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: 192.168.1.24:9115
